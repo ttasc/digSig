@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Chào {{ email }}</h1>
+<div class="menu">
+    <a href="{{ url_for('create_key') }}">Tạo chữ ký mới</a>
+    <a href="{{ url_for('sign_pdf') }}">Ký PDF</a>
+    <a href="{{ url_for('verify') }}">Xác minh PDF</a>
+</div>
+
+<h2>Danh sách chữ ký</h2>
+<ul>
+    {% for sig in signatures %}
+    <li>
+        {{ sig.name }}
+        <a href="{{ url_for('delete_key', key_id=sig.id) }}" class="delete-btn">Xóa</a>
+    </li>
+    {% endfor %}
+</ul>
+{% endblock %}

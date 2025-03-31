@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Xác minh chữ ký PDF</h1>
+<form method="post" enctype="multipart/form-data">
+    <div class="form-group">
+        <label>Tải lên file PDF:</label>
+        <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+    </div>
+    <button type="submit">Xác minh</button>
+</form>
+
+{% if message %}
+<div class="verify-result {% if valid %}valid{% else %}invalid{% endif %}">
+    <p>{{ message }}</p>
+    <br>
+    {% if valid %}
+    <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ details.details }}</pre>
+    <!-- <ul> -->
+    <!--     <li>Người ký: {{ details.signer }}</li> -->
+    <!--     <li>Thời gian ký: {{ details.signing_time }}</li> -->
+    <!--     <li>Thuật toán hash: {{ details.hash_algorithm }}</li> -->
+    <!-- </ul> -->
+    {% endif %}
+</div>
+{% endif %}
+
+<a href="{{ url_for('dashboard') }}" class="back-btn">Quay lại</a>
+{% endblock %}
