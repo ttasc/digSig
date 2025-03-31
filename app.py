@@ -3,6 +3,7 @@ import json
 import uuid
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, send_file
+from dotenv import load_dotenv
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography import x509
@@ -12,8 +13,9 @@ from pyhanko.sign import signers
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign.validation import validate_pdf_signature
 
+load_dotenv()
 app = Flask(__name__)
-app.secret_key = 'your_very_secret_key_here!@#'
+app.secret_key = os.getenv('FLASK_SECRET_KEY')
 
 # Cấu hình thư mục
 USERS_DIR = 'users'
