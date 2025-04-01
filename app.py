@@ -14,7 +14,7 @@ from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign.validation import validate_pdf_signature
 
 load_dotenv()
-secret_key = os.getenv('FLASK_SECRET_KEY')
+secret_key = os.getenv('SECRET_KEY')
 port = int(os.getenv('PORT') or 5000)
 
 app = Flask(__name__)
