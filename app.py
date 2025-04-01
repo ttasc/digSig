@@ -14,8 +14,11 @@ from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign.validation import validate_pdf_signature
 
 load_dotenv()
+secret_key = os.getenv('FLASK_SECRET_KEY')
+port = int(os.getenv('PORT') or 5000)
+
 app = Flask(__name__)
-app.secret_key = os.getenv('FLASK_SECRET_KEY')
+app.secret_key = secret_key
 
 # Cấu hình thư mục
 USERS_DIR = 'users'
@@ -48,7 +51,7 @@ def generate_self_signed_cert(private_key, email):
     subject = issuer = x509.Name([
         x509.NameAttribute(NameOID.COUNTRY_NAME, "VN"),
         x509.NameAttribute(NameOID.ORGANIZATION_NAME, "Personal Signer"),
-        x509.NameAttribute(NameOID.COMMON_NAME, email),
+        x509.NameAttribute(NameOID.EMAIL_ADDRESS, email),
     ])
     cert = (
         x509.CertificateBuilder()
@@ -232,4 +235,4 @@ def verify():
     return render_template('verify.html', message=message, valid=valid, details=details)
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=port, debug=True)
