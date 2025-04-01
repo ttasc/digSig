@@ -176,7 +176,7 @@ def sign_pdf():
         )
 
         with open(temp_path, 'rb') as f:
-            w = IncrementalPdfFileWriter(f)
+            w = IncrementalPdfFileWriter(f, strict=False)
             signers.PdfSigner(
                 signers.PdfSignatureMetadata(field_name='Signature'),
                 signer=signer,
