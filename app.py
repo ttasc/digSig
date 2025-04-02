@@ -192,6 +192,43 @@ def sign_pdf():
 
     return render_template('sign.html', signatures=signatures)
 
+# @app.route('/verify', methods=['GET', 'POST'])
+# def verify():
+#     if 'email' not in session:
+#         return redirect(url_for('index'))
+#
+#     email = session['email']
+#     message = None
+#     valid = False
+#     details = {}
+#
+#     if request.method == 'POST':
+#         pdf_file = request.files['pdf_file']
+#         user_dir = get_user_dir(email)
+#         temp_path = os.path.join(user_dir, 'verify_temp.pdf')
+#         pdf_file.save(temp_path)
+#
+#         try:
+#             with open(temp_path, 'rb') as f:
+#                 reader = PdfFileReader(f, strict=False)
+#                 if not reader.embedded_signatures:
+#                     message = "⚠️ Không tìm thấy chữ ký trong file PDF!"
+#                 else:
+#                     sig = reader.embedded_signatures[0]
+#                     status = validate_pdf_signature(sig)
+#                     valid = status.valid
+#                     details = {
+#                         'details': status.pretty_print_details(),
+#                     }
+#                     message = "✅ Chữ ký hợp lệ!" if valid else "❌ Chữ ký không hợp lệ!"
+#         except Exception as e:
+#             message = f"⛔ Lỗi: {str(e)}"
+#         finally:
+#             if os.path.exists(temp_path):
+#                 os.remove(temp_path)
+#
+#     return render_template('verify.html', message=message, valid=valid, details=details)
+
 @app.route('/verify', methods=['GET', 'POST'])
 def verify():
     if 'email' not in session:
@@ -201,6 +238,7 @@ def verify():
     message = None
     valid = False
     details = {}
+    modified_after_signing = False
 
     if request.method == 'POST':
         pdf_file = request.files['pdf_file']
@@ -210,29 +248,39 @@ def verify():
 
         try:
             with open(temp_path, 'rb') as f:
-                reader = PdfFileReader(f)
+                reader = PdfFileReader(f, strict=False)
                 if not reader.embedded_signatures:
                     message = "⚠️ Không tìm thấy chữ ký trong file PDF!"
                 else:
                     sig = reader.embedded_signatures[0]
                     status = validate_pdf_signature(sig)
                     valid = status.valid
+
+                    modified_after_signing = status.intact is False
+
                     details = {
+                        'integrity': 'Nguyên vẹn' if status.intact else 'Đã bị thay đổi',
+                        'trusted': 'Đáng tin cậy' if status.trusted else 'Không đáng tin cậy',
                         'details': status.pretty_print_details(),
                     }
-                    # details = {
-                    #     'signer': status.signer_name,
-                    #     'signing_time': status.signing_time.strftime("%Y-%m-%d %H:%M:%S") if status.signing_time else "Không xác định",
-                    #     'hash_algo': status.signer_hash_algo
-                    # }
-                    message = "✅ Chữ ký hợp lệ!" if valid else "❌ Chữ ký không hợp lệ!"
+
+                    if valid and status.intact:
+                        message = "✅ Chữ ký hợp lệ và file không bị thay đổi sau khi ký!"
+                    elif valid and not status.intact:
+                        message = "⚠️ Chữ ký hợp lệ nhưng file ĐÃ BỊ THAY ĐỔI sau khi ký!"
+                    else:
+                        message = "❌ Chữ ký không hợp lệ!"
         except Exception as e:
             message = f"⛔ Lỗi: {str(e)}"
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
-    return render_template('verify.html', message=message, valid=valid, details=details)
+    return render_template('verify.html',
+                         message=message,
+                         valid=valid,
+                         details=details,
+                         modified=modified_after_signing)
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=port, debug=True)

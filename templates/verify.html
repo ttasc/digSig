@@ -14,13 +14,15 @@
 <div class="verify-result {% if valid %}valid{% else %}invalid{% endif %}">
     <p>{{ message }}</p>
     <br>
-    {% if valid %}
-    <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ details.details }}</pre>
-    <!-- <ul> -->
-    <!--     <li>Người ký: {{ details.signer }}</li> -->
-    <!--     <li>Thời gian ký: {{ details.signing_time }}</li> -->
-    <!--     <li>Thuật toán hash: {{ details.hash_algorithm }}</li> -->
-    <!-- </ul> -->
+    {% if details %}
+    <div class="verification-details">
+        <h3>Chi tiết xác minh:</h3>
+        <ul>
+            <li><strong>Tình trạng file:</strong> {{ details.integrity }}</li>
+            <li><strong>Độ tin cậy:</strong> {{ details.trusted }}</li>
+            <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ details.details }}</pre>
+        </ul>
+    </div>
     {% endif %}
 </div>
 {% endif %}
