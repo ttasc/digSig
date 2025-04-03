@@ -175,59 +175,35 @@ def sign_pdf():
             cert_path
         )
 
-        with open(temp_path, 'rb') as f:
-            w = IncrementalPdfFileWriter(f, strict=False)
-            signers.PdfSigner(
-                signers.PdfSignatureMetadata(field_name='Signature'),
-                signer=signer,
-            ).sign_pdf(
-                pdf_out=w,
-                output=open(signed_path, 'wb'),
-            )
+        try:
+            with open(temp_path, 'rb') as f:
+                w = IncrementalPdfFileWriter(f, strict=False)
 
-        # Dọn dẹp file tạm
-        os.remove(temp_path)
+                # Tạo tên trường chữ ký duy nhất bằng UUID
+                field_name = f"Signature_{uuid.uuid4().hex[:8]}"
 
-        return send_file(signed_path, as_attachment=True, download_name='signed.pdf')
+                signers.PdfSigner(
+                    signers.PdfSignatureMetadata(field_name=field_name),  # Sử dụng tên duy nhất
+                    signer=signer,
+                ).sign_pdf(
+                    pdf_out=w,
+                    output=open(signed_path, 'wb'),
+                )
+
+            # Dọn dẹp file tạm
+            os.remove(temp_path)
+
+            return send_file(signed_path, as_attachment=True, download_name='signed.pdf')
+
+        except Exception as e:
+            # Dọn dẹp file tạm nếu có lỗi
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            if os.path.exists(signed_path):
+                os.remove(signed_path)
+            return render_template('sign.html', signatures=signatures, error=f"Lỗi khi ký file: {str(e)}")
 
     return render_template('sign.html', signatures=signatures)
-
-# @app.route('/verify', methods=['GET', 'POST'])
-# def verify():
-#     if 'email' not in session:
-#         return redirect(url_for('index'))
-#
-#     email = session['email']
-#     message = None
-#     valid = False
-#     details = {}
-#
-#     if request.method == 'POST':
-#         pdf_file = request.files['pdf_file']
-#         user_dir = get_user_dir(email)
-#         temp_path = os.path.join(user_dir, 'verify_temp.pdf')
-#         pdf_file.save(temp_path)
-#
-#         try:
-#             with open(temp_path, 'rb') as f:
-#                 reader = PdfFileReader(f, strict=False)
-#                 if not reader.embedded_signatures:
-#                     message = "⚠️ Không tìm thấy chữ ký trong file PDF!"
-#                 else:
-#                     sig = reader.embedded_signatures[0]
-#                     status = validate_pdf_signature(sig)
-#                     valid = status.valid
-#                     details = {
-#                         'details': status.pretty_print_details(),
-#                     }
-#                     message = "✅ Chữ ký hợp lệ!" if valid else "❌ Chữ ký không hợp lệ!"
-#         except Exception as e:
-#             message = f"⛔ Lỗi: {str(e)}"
-#         finally:
-#             if os.path.exists(temp_path):
-#                 os.remove(temp_path)
-#
-#     return render_template('verify.html', message=message, valid=valid, details=details)
 
 @app.route('/verify', methods=['GET', 'POST'])
 def verify():
@@ -236,8 +212,8 @@ def verify():
 
     email = session['email']
     message = None
-    valid = False
-    details = {}
+    all_valid = True
+    all_signatures = []
     modified_after_signing = False
 
     if request.method == 'POST':
@@ -252,35 +228,84 @@ def verify():
                 if not reader.embedded_signatures:
                     message = "⚠️ Không tìm thấy chữ ký trong file PDF!"
                 else:
-                    sig = reader.embedded_signatures[0]
-                    status = validate_pdf_signature(sig)
-                    valid = status.valid
+                    for sig in reader.embedded_signatures:
+                        status = validate_pdf_signature(sig)
 
-                    modified_after_signing = status.intact is False
+                        signer_info = {
+                            'name': 'Không rõ',
+                            'email': 'Không rõ',
+                            'organization': 'Không rõ'
+                        }
 
-                    details = {
-                        'integrity': 'Nguyên vẹn' if status.intact else 'Đã bị thay đổi',
-                        'trusted': 'Đáng tin cậy' if status.trusted else 'Không đáng tin cậy',
-                        'details': status.pretty_print_details(),
-                    }
+                        try:
+                            # Lấy chứng chỉ từ signature
+                            if hasattr(sig, 'signer_cert'):
+                                cert = sig.signer_cert
+                                # Trích xuất thông tin từ chứng chỉ
+                                for attr in cert.subject:
+                                    if attr.oid == NameOID.EMAIL_ADDRESS:
+                                        signer_info['email'] = attr.value
+                                    elif attr.oid == NameOID.COMMON_NAME:
+                                        signer_info['name'] = attr.value
+                                    elif attr.oid == NameOID.ORGANIZATION_NAME:
+                                        signer_info['organization'] = attr.value
+                        except Exception as e:
+                            print(f"Lỗi khi trích xuất chứng chỉ: {str(e)}")
 
-                    if valid and status.intact:
-                        message = "✅ Chữ ký hợp lệ và file không bị thay đổi sau khi ký!"
-                    elif valid and not status.intact:
-                        message = "⚠️ Chữ ký hợp lệ nhưng file ĐÃ BỊ THAY ĐỔI sau khi ký!"
+                        # Lấy thời gian ký
+                        signing_time = None
+                        if sig.sig_object.get('/M'):
+                            try:
+                                signing_time = sig.sig_object['/M'].decode('utf-8')
+                            except:
+                                signing_time = str(sig.sig_object['/M'])
+
+                        signature_data = {
+                            'valid': status.valid,
+                            'intact': status.intact,
+                            'signer': signer_info['name'],
+                            'email': signer_info['email'],
+                            'organization': signer_info['organization'],
+                            'signing_time': signing_time or 'Không rõ',
+                            'details': status.pretty_print_details(),
+                        }
+                        all_signatures.append(signature_data)
+
+                        if not status.valid:
+                            all_valid = False
+                        if not status.intact:
+                            modified_after_signing = True
+
+                    # Tạo thông báo tổng hợp
+                    total_signatures = len(all_signatures)
+                    valid_count = sum(1 for sig in all_signatures if sig['valid'])
+
+                    if all_valid and not modified_after_signing:
+                        message = f"✅ Tất cả {total_signatures} chữ ký đều hợp lệ và file không bị thay đổi!"
+                    elif valid_count > 0:
+                        message = f"⚠️ {valid_count}/{total_signatures} chữ ký hợp lệ"
+                        if modified_after_signing:
+                            message += " (file đã bị thay đổi sau khi ký)"
                     else:
-                        message = "❌ Chữ ký không hợp lệ!"
+                        message = "❌ Không có chữ ký nào hợp lệ!"
+
         except Exception as e:
             message = f"⛔ Lỗi: {str(e)}"
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
 
-    return render_template('verify.html',
-                         message=message,
-                         valid=valid,
-                         details=details,
-                         modified=modified_after_signing)
+    return render_template('verify.html', message=message, all_valid=all_valid, all_signatures=all_signatures, modified=modified_after_signing)
+
+@app.template_filter('parse_pdf_date')
+def parse_pdf_date_filter(pdf_date_str):
+    try:
+        if pdf_date_str.startswith('D:'):
+            date_str = pdf_date_str[2:16]  # Lấy phần YYYYMMDDHHmmSS
+            return datetime.strptime(date_str, '%Y%m%d%H%M%S').strftime('%d/%m/%Y %H:%M:%S')
+        return pdf_date_str
+    except:
+        return pdf_date_str
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=port, debug=True)

@@ -2,30 +2,85 @@
 
 {% block content %}
 <h1>Xác minh chữ ký PDF</h1>
-<form method="post" enctype="multipart/form-data">
+
+<!-- Form upload file -->
+<form method="post" enctype="multipart/form-data" class="verify-form">
     <div class="form-group">
-        <label>Tải lên file PDF:</label>
-        <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+        <label class="file-upload-label">
+            <span>Tải lên file PDF:</span>
+            <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+        </label>
     </div>
-    <button type="submit">Xác minh</button>
+    <button type="submit" class="verify-btn">Xác minh</button>
 </form>
 
+<!-- Hiển thị kết quả -->
 {% if message %}
-<div class="verify-result {% if valid %}valid{% else %}invalid{% endif %}">
-    <p>{{ message }}</p>
-    <br>
-    {% if details %}
-    <div class="verification-details">
-        <h3>Chi tiết xác minh:</h3>
-        <ul>
-            <li><strong>Tình trạng file:</strong> {{ details.integrity }}</li>
-            <li><strong>Độ tin cậy:</strong> {{ details.trusted }}</li>
-            <pre style="white-space: pre-wrap; word-wrap: break-word;">{{ details.details }}</pre>
-        </ul>
-    </div>
-    {% endif %}
+<div class="verification-summary {% if all_valid %}valid-summary{% else %}invalid-summary{% endif %}">
+    <div class="summary-text">{{ message }}</div>
 </div>
+
+<!-- Chi tiết từng chữ ký -->
+{% if all_signatures %}
+<div class="signatures-container">
+    {% for sig in all_signatures %}
+    <div class="signature-card {% if sig.valid %}valid-signature{% else %}invalid-signature{% endif %}">
+        <div class="signature-header">
+            <h3>Chữ ký #{{ loop.index }}</h3>
+            <div class="status-badge">
+                {% if sig.valid %}<span class="valid-badge">HỢP LỆ</span>
+                {% else %}<span class="invalid-badge">KHÔNG HỢP LỆ</span>{% endif %}
+            </div>
+        </div>
+
+        <div class="signature-details">
+            <div class="detail-row">
+                <span class="detail-label">Người ký:</span>
+                <span class="detail-value">{{ sig.signer }}</span>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Thời gian ký:</span>
+                <span class="detail-value">
+                    {{ sig.signing_time|parse_pdf_date|default('Không rõ', true) }}
+                </span>
+            </div>
+
+            <div class="detail-row">
+                <span class="detail-label">Toàn vẹn:</span>
+                <span class="detail-value">
+                    {% if sig.intact %}<span class="intact-true">✅ Không bị thay đổi</span>
+                    {% else %}<span class="intact-false">❌ Đã bị chỉnh sửa</span>{% endif %}
+                </span>
+            </div>
+
+            <div class="technical-details">
+                <button class="toggle-tech-details" onclick="toggleDetails(this)">
+                    Xem thông tin kỹ thuật ▼
+                </button>
+                <div class="tech-details-content" style="display:none">
+                    <pre>{{ sig.details }}</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endif %}
 
 <a href="{{ url_for('dashboard') }}" class="back-btn">Quay lại</a>
+
+<script>
+function toggleDetails(button) {
+    const content = button.nextElementSibling;
+    if (content.style.display === "none") {
+        content.style.display = "block";
+        button.textContent = "Ẩn thông tin kỹ thuật ▲";
+    } else {
+        content.style.display = "none";
+        button.textContent = "Xem thông tin kỹ thuật ▼";
+    }
+}
+</script>
 {% endblock %}

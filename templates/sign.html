@@ -2,7 +2,15 @@
 
 {% block content %}
 <h1>Ký file PDF</h1>
+
+{% if error %}
+<div class="alert alert-danger">
+    {{ error }}
+</div>
+{% endif %}
+
 <form action="{{ url_for('sign_pdf') }}" method="post" enctype="multipart/form-data">
+    <!-- Phần form cũ giữ nguyên -->
     <div class="form-group">
         <label for="key_id">Chọn chữ ký:</label>
         <select name="key_id" id="key_id" required>
