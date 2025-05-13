@@ -1,5 +1,2 @@
 flask
-python-dotenv
 cryptography
-pyhanko
-pypdf2

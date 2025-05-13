@@ -1,32 +1,40 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Ký file PDF</h1>
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                Ký tài liệu PDF
+            </div>
+            <div class="card-body">
+                <form method="POST" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label class="form-label">Chọn file PDF:</label>
+                        <input type="file" class="form-control" name="pdf" accept=".pdf" required>
+                    </div>
 
-{% if error %}
-<div class="alert alert-danger">
-    {{ error }}
+                    <div class="mb-3">
+                        <label class="form-label">Chọn Private Key:</label>
+                        <input type="file" class="form-control" name="private_key" accept=".pem" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-success w-100">
+                        🖋️ Tạo chữ ký
+                    </button>
+                </form>
+
+                {% if signature %}
+                <div class="mt-4 text-center">
+                    <h5>✅ Tạo chữ ký thành công!</h5>
+                    <a href="{{ url_for('download', filename=signature) }}"
+                       class="btn btn-outline-success mt-2">
+                        ⬇️ Tải file chữ ký (.sig)
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
-{% endif %}
-
-<form action="{{ url_for('sign_pdf') }}" method="post" enctype="multipart/form-data">
-    <!-- Phần form cũ giữ nguyên -->
-    <div class="form-group">
-        <label for="key_id">Chọn chữ ký:</label>
-        <select name="key_id" id="key_id" required>
-            {% for sig in signatures %}
-            <option value="{{ sig.id }}">{{ sig.name }}</option>
-            {% endfor %}
-        </select>
-    </div>
-
-    <div class="form-group">
-        <label>Tải lên file PDF:</label>
-        <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
-    </div>
-
-    <button type="submit">Ký PDF</button>
-</form>
-
-<a href="{{ url_for('dashboard') }}" class="back-btn">Quay lại</a>
 {% endblock %}

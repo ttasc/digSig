@@ -1,9 +1,26 @@
 {% extends "base.html" %}
 
 {% block content %}
-<h1>Đăng nhập</h1>
-<form action="/login" method="post">
-    <input type="email" name="email" placeholder="Email" required>
-    <button type="submit">Tiếp tục</button>
-</form>
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                Trang chủ
+            </div>
+            <div class="card-body text-center">
+                <div class="list-group">
+                    <a href="{{ url_for('generate_keys') }}" class="list-group-item list-group-item-action">
+                        🗝️ Tạo cặp khóa mới
+                    </a>
+                    <a href="{{ url_for('sign') }}" class="list-group-item list-group-item-action">
+                        📝 Ký tài liệu PDF
+                    </a>
+                    <a href="{{ url_for('verify') }}" class="list-group-item list-group-item-action">
+                        🔍 Xác minh chữ ký
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
