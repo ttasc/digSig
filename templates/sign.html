@@ -10,7 +10,6 @@
 {% endif %}
 
 <form action="{{ url_for('sign_pdf') }}" method="post" enctype="multipart/form-data">
-    <!-- Phần form cũ giữ nguyên -->
     <div class="form-group">
         <label for="key_id">Chọn chữ ký:</label>
         <select name="key_id" id="key_id" required>
@@ -21,8 +20,14 @@
     </div>
 
     <div class="form-group">
-        <label>Tải lên file PDF:</label>
+        <label for="pdf_file">Tải lên file PDF:</label>
         <input type="file" name="pdf_file" id="pdf_file" accept=".pdf" required>
+    </div>
+
+    <!-- Thêm trường upload private key -->
+    <div class="form-group">
+        <label for="private_key">Tải lên private key:</label>
+        <input type="file" name="private_key" id="private_key" accept=".pem" required>
     </div>
 
     <button type="submit">Ký PDF</button>

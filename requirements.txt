@@ -2,4 +2,5 @@ flask
 python-dotenv
 cryptography
 pyhanko
+pyhanko_certvalidator
 pypdf2

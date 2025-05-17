@@ -35,18 +35,6 @@
 
         <div class="signature-details">
             <div class="detail-row">
-                <span class="detail-label">Người ký:</span>
-                <span class="detail-value">{{ sig.signer }}</span>
-            </div>
-
-            <div class="detail-row">
-                <span class="detail-label">Thời gian ký:</span>
-                <span class="detail-value">
-                    {{ sig.signing_time|parse_pdf_date|default('Không rõ', true) }}
-                </span>
-            </div>
-
-            <div class="detail-row">
                 <span class="detail-label">Toàn vẹn:</span>
                 <span class="detail-value">
                     {% if sig.intact %}<span class="intact-true">✅ Không bị thay đổi</span>

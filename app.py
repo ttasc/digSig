@@ -1,4 +1,5 @@
 import os
+import io
 import json
 import uuid
 from datetime import datetime, timedelta
@@ -12,6 +13,8 @@ from pyhanko.pdf_utils.incremental_writer import IncrementalPdfFileWriter
 from pyhanko.sign import signers
 from pyhanko.pdf_utils.reader import PdfFileReader
 from pyhanko.sign.validation import validate_pdf_signature
+from pyhanko_certvalidator import ValidationContext
+from pyhanko_certvalidator.policy_decl import AcceptAllAlgorithms
 
 load_dotenv()
 secret_key = os.getenv('SECRET_KEY')
@@ -101,29 +104,36 @@ def create_key():
     # Tạo chứng thư tự ký
     cert = generate_self_signed_cert(private_key, email)
 
-    # Lưu private key và cert
-    private_key_path = os.path.join(user_dir, f'{key_id}_private.pem')
-    with open(private_key_path, 'wb') as f:
-        f.write(private_key.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
-            encryption_algorithm=serialization.NoEncryption()
-        ))
-
+    # Lưu cert (không lưu private key)
     cert_path = os.path.join(user_dir, f'{key_id}_cert.pem')
     with open(cert_path, 'wb') as f:
         f.write(cert.public_bytes(serialization.Encoding.PEM))
 
-    # Cập nhật danh sách
+    # Chuẩn bị private key để tải về
+    private_key_bytes = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+
+    # Cập nhật danh sách (chỉ lưu thông tin chứng thư)
     signatures = load_signatures(email)
     signatures.append({
         'id': key_id,
         'name': f'Signature {len(signatures)+1}',
-        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M")
+        'created_at': datetime.now().strftime("%Y-%m-%d %H:%M"),
+        'cert_path': cert_path  # Lưu đường dẫn chứng thư
     })
     save_signatures(email, signatures)
 
-    return redirect(url_for('dashboard'))
+    # Tạo response tải về private key
+    return send_file(
+        io.BytesIO(private_key_bytes),
+        as_attachment=True,
+        download_name=f'{key_id}_private.pem',
+        mimetype='application/x-pem-file'
+    )
+    # return redirect(url_for('dashboard'))
 
 @app.route('/delete_key/<key_id>')
 def delete_key(key_id):
@@ -160,30 +170,33 @@ def sign_pdf():
     if request.method == 'POST':
         key_id = request.form['key_id']
         pdf_file = request.files['pdf_file']
+        private_key_file = request.files['private_key']
 
         # Đường dẫn file
-        temp_path = os.path.join(user_dir, 'temp.pdf')
+        pdf_temp_path = os.path.join(user_dir, 'temp.pdf')
+        key_temp_path = os.path.join(user_dir, 'temp.pem')
+
         signed_path = os.path.join(user_dir, 'signed.pdf')
-        pdf_file.save(temp_path)
+
+        pdf_file.save(pdf_temp_path)
+        private_key_file.save(key_temp_path)
 
         # Load key và cert
-        private_key_path = os.path.join(user_dir, f'{key_id}_private.pem')
+        # private_key_path = os.path.join(user_dir, f'{key_id}_private.pem')
         cert_path = os.path.join(user_dir, f'{key_id}_cert.pem')
 
         signer = signers.SimpleSigner.load(
-            private_key_path,
+            key_temp_path,
             cert_path
         )
 
         try:
-            with open(temp_path, 'rb') as f:
+            with open(pdf_temp_path, 'rb') as f:
                 w = IncrementalPdfFileWriter(f, strict=False)
-
-                # Tạo tên trường chữ ký duy nhất bằng UUID
                 field_name = f"Signature_{uuid.uuid4().hex[:8]}"
 
                 signers.PdfSigner(
-                    signers.PdfSignatureMetadata(field_name=field_name),  # Sử dụng tên duy nhất
+                    signers.PdfSignatureMetadata(field_name=field_name),
                     signer=signer,
                 ).sign_pdf(
                     pdf_out=w,
@@ -191,16 +204,20 @@ def sign_pdf():
                 )
 
             # Dọn dẹp file tạm
-            os.remove(temp_path)
+            os.remove(pdf_temp_path)
+            os.remove(key_temp_path)
+            os.remove(signed_path)
 
             return send_file(signed_path, as_attachment=True, download_name='signed.pdf')
 
         except Exception as e:
             # Dọn dẹp file tạm nếu có lỗi
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+            if os.path.exists(pdf_temp_path):
+                os.remove(pdf_temp_path)
             if os.path.exists(signed_path):
                 os.remove(signed_path)
+            if os.path.exists(key_temp_path):
+                os.remove(key_temp_path)
             return render_template('sign.html', signatures=signatures, error=f"Lỗi khi ký file: {str(e)}")
 
     return render_template('sign.html', signatures=signatures)
@@ -229,44 +246,16 @@ def verify():
                     message = "⚠️ Không tìm thấy chữ ký trong file PDF!"
                 else:
                     for sig in reader.embedded_signatures:
-                        status = validate_pdf_signature(sig)
-
-                        signer_info = {
-                            'name': 'Không rõ',
-                            'email': 'Không rõ',
-                            'organization': 'Không rõ'
-                        }
-
-                        try:
-                            # Lấy chứng chỉ từ signature
-                            if hasattr(sig, 'signer_cert'):
-                                cert = sig.signer_cert
-                                # Trích xuất thông tin từ chứng chỉ
-                                for attr in cert.subject:
-                                    if attr.oid == NameOID.EMAIL_ADDRESS:
-                                        signer_info['email'] = attr.value
-                                    elif attr.oid == NameOID.COMMON_NAME:
-                                        signer_info['name'] = attr.value
-                                    elif attr.oid == NameOID.ORGANIZATION_NAME:
-                                        signer_info['organization'] = attr.value
-                        except Exception as e:
-                            print(f"Lỗi khi trích xuất chứng chỉ: {str(e)}")
-
-                        # Lấy thời gian ký
-                        signing_time = None
-                        if sig.sig_object.get('/M'):
-                            try:
-                                signing_time = sig.sig_object['/M'].decode('utf-8')
-                            except:
-                                signing_time = str(sig.sig_object['/M'])
+                        status = validate_pdf_signature(
+                            sig,
+                            signer_validation_context=ValidationContext(
+                                algorithm_usage_policy=AcceptAllAlgorithms()
+                            )
+                        )
 
                         signature_data = {
                             'valid': status.valid,
                             'intact': status.intact,
-                            'signer': signer_info['name'],
-                            'email': signer_info['email'],
-                            'organization': signer_info['organization'],
-                            'signing_time': signing_time or 'Không rõ',
                             'details': status.pretty_print_details(),
                         }
                         all_signatures.append(signature_data)
@@ -296,16 +285,6 @@ def verify():
                 os.remove(temp_path)
 
     return render_template('verify.html', message=message, all_valid=all_valid, all_signatures=all_signatures, modified=modified_after_signing)
-
-@app.template_filter('parse_pdf_date')
-def parse_pdf_date_filter(pdf_date_str):
-    try:
-        if pdf_date_str.startswith('D:'):
-            date_str = pdf_date_str[2:16]  # Lấy phần YYYYMMDDHHmmSS
-            return datetime.strptime(date_str, '%Y%m%d%H%M%S').strftime('%d/%m/%Y %H:%M:%S')
-        return pdf_date_str
-    except:
-        return pdf_date_str
 
 if __name__ == '__main__':
     app.run(host="0.0.0.0", port=port, debug=True)
