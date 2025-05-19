@@ -211,7 +211,6 @@ def sign_pdf():
             # Dọn dẹp file tạm
             os.remove(pdf_temp_path)
             os.remove(key_temp_path)
-            os.remove(signed_path)
 
             return send_file(signed_path, as_attachment=True, download_name='signed.pdf')
 
