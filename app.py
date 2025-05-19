@@ -77,7 +77,12 @@ def index():
 
 @app.route('/login', methods=['POST'])
 def login():
-    email = request.form['email']
+    email = request.form['email'].strip()
+    password = request.form['password'].strip()
+
+    if email != password:
+        return render_template('index.html', error="Mật khẩu không chính xác")
+
     session['email'] = email
     return redirect(url_for('dashboard'))
 
